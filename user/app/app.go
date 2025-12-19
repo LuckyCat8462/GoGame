@@ -38,6 +38,7 @@ func Run(ctx context.Context) error {
 
 		//注册grpc service 需要数据库 mongo redis
 		//初始化 数据库管理
+		//manager := repo.New()
 		//阻塞操作
 		err = server.Serve(listen)
 		if err != nil {
