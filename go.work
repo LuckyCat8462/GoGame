@@ -4,7 +4,10 @@ use (
 	connector
 	core
 	framework
+	gate
 	game
 	hall
 	user
+	test
+
 )

@@ -1,3 +1,4 @@
+// Package repo 数据库操作统一管理
 package repo
 
 import "common/database"

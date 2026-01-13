@@ -61,6 +61,7 @@ type RedisConf struct {
 	MinIdleConns int      `mapstructure:"minIdleConns"`
 	Host         string   `mapstructure:"host"`
 	Port         int      `mapstructure:"port"`
+	DB           int      `mapstructure:"redisDB"`
 }
 type EtcdConf struct {
 	Addrs       []string       `mapstructure:"addrs"`
@@ -95,7 +96,6 @@ func InitConfig(configFile string) {
 	err := v.ReadInConfig()
 	if err != nil {
 		panic(fmt.Errorf("读取错误 config file: %s \n", err))
-		//fmt.Println("读取配置文件出错", err.Error()
 	}
 	//	解析
 	err = v.Unmarshal(&Conf)

@@ -10,15 +10,15 @@ import (
 type Server struct {
 	Name    string `json:"name"`
 	Addr    string `json:"addr"`
-	Weight  int    `json:"weight"`
+	Weight  int    `json:"weight"` //权重
 	Version string `json:"version"`
 	Ttl     int64  `json:"ttl"`
 }
 
+// BuildRegisterKey 构造注册所需的key,根据是否含有version判断，key是否要加version参数
 func (s Server) BuildRegisterKey() string {
-
 	if len(s.Version) == 0 {
-		// user
+		// key不带version版本格式：user
 		return fmt.Sprintf("/%s/%s", s.Name, s.Addr)
 	}
 	//user/v1

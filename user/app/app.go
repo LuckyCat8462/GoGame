@@ -5,80 +5,85 @@ import (
 	"common/discovery"
 	"common/logs"
 	"context"
+	"core/repo"
 	"fmt"
 	"google.golang.org/grpc"
-	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+	"user/internal/service"
+	"user/pb"
 )
 
-// Run 启动程序	grpc、http、日志、数据库
+// Run 启动程序 启动grpc服务 启用http服务  启用日志 启用数据库
 func Run(ctx context.Context) error {
-	//1.做一个日志库 info error fatal debug
+	//1.引入日志库 charm bracelet/log
 	logs.InitLog(config.Conf.AppName)
 	//2. etcd注册中心 grpc服务注册到etcd中 客户端访问的时候 通过etcd获取grpc的地址
 	register := discovery.NewRegister()
-	//加一个ctx上下文，例如需要设置超时的时候，就需要这个东西
-	//	启动grpc服务端
+
+	//启动grpc服务端
 	server := grpc.NewServer()
-	//放到一个协程中去go func
-	go func() {
-		listen, err := net.Listen("tcp", config.Conf.Grpc.Addr)
+	go func() { //因为是一个阻塞操作，所以放到协程中
+		lis, err := net.Listen("tcp", config.Conf.Grpc.Addr)
 		if err != nil {
-			logs.Fatal("failed to grpc listen: %v", err)
+			logs.Fatal("app.go:user grpc server listen err:%v", err)
 		}
+		//注册grpc
 		err = register.Register(config.Conf.Etcd)
 		if err != nil {
-			logs.Fatal("注册失败 grpc register: %v", err)
+			logs.Fatal("app.go:user grpc server register etcd err:%v", err)
 
 		}
+		////初始化 数据库管理
+		manager := repo.New()
+		pb.RegisterUserServiceServer(server, service.NewAccountService(manager))
 
-		//注册grpc service 需要数据库 mongo redis
-		//初始化 数据库管理
-		//manager := repo.New()
 		//阻塞操作
-		err = server.Serve(listen)
+		err = server.Serve(lis)
 		if err != nil {
-			log.Fatalf("failed to grpc serve run: %v", err)
+			logs.Fatal("app.go:user grpc server run err:%v", err)
+		} else {
+			logs.Info("✅ service user running")
 		}
-	}()
 
-	//	优雅启停，遇到中断信号、推出、终止、挂断
+	}()
+	//优雅启停：遇到退出、终止、挂断，有一个优雅的结束
 	stop := func() {
+		fmt.Println("app.go:user grpc server 优雅启停")
 		server.Stop()
 		register.Close()
-
+		//manager.Close()
+		//other
 		time.Sleep(3 * time.Second)
-		fmt.Println("stop app finish")
+		logs.Info("stop app finish")
 	}
-
-	chanel := make(chan os.Signal, 1)
-	//signal.Notify监听信号：SIGINT中断，SIGTERM终止,SIGQUIT退出,SIGHUP挂断
-	signal.Notify(chanel, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+	//缓冲的channel 信号量signal
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGHUP)
 	for {
 		select {
-		//监听上下文
 		case <-ctx.Done():
 			stop()
 			//time out
 			return nil
-		case sig := <-chanel:
-			switch sig {
-			case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+		case s := <-c:
+			switch s {
+			case syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT:
 				stop()
-				log.Println("user app quit")
+				logs.Info("user app quit")
 				return nil
 			case syscall.SIGHUP:
 				stop()
-				log.Println("hang up ! user app quit")
+				logs.Info("hang up!! user app quit")
 				return nil
 			default:
 				return nil
 			}
-
 		}
 	}
+
+	return nil
 }
